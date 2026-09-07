@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Email Verification | SmartLocker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="verify.css" />
+  </head>
+  <body>
+    <main class="verification-shell">
+      <section class="verification-panel" aria-live="polite">
+        <a class="brand" href="../../index.html">
+          <img src="../../Photos/UMAKLogo.png" alt="UMAK logo" />
+          <span>SmartLocker</span>
+        </a>
+
+        <div class="status-mark" id="statusMark" aria-hidden="true">✓</div>
+        <p class="eyebrow">ACCOUNT SECURITY</p>
+        <h1 id="statusTitle">Email verified</h1>
+        <p class="status-message" id="statusMessage">Your email address has been confirmed. Your SmartLocker account is ready to use.</p>
+        <p class="verified-email" id="verifiedEmail" hidden></p>
+        <a class="primary-action" id="statusAction" href="../login/login.html">Continue to login</a>
+        <p class="support-text" id="supportText">You can now sign in with your UMAK email and password.</p>
+      </section>
+    </main>
+    <script>
+      const status = new URLSearchParams(window.location.search).get('status');
+      const content = {
+        success: {
+          title: 'Email verified',
+          message: 'Your email address has been confirmed. Your SmartLocker account is ready to use.',
+          action: 'Continue to login',
+          support: 'You can now sign in with your UMAK email and password.',
+          mark: '✓',
+          className: 'is-success',
+          href: '../login/login.html'
+        },
+        expired: {
+          title: 'Verification link expired',
+          message: 'This link is no longer valid. Request a new verification email to continue.',
+          action: 'Return to signup',
+          support: 'Verification links are valid for 24 hours.',
+          mark: '!',
+          className: 'is-warning',
+          href: '../signup/signup.html'
+        },
+        invalid: {
+          title: 'Invalid verification link',
+          message: 'We could not verify this link. It may be incomplete or already used.',
+          action: 'Return to signup',
+          support: 'Request a new verification email to try again.',
+          mark: '!',
+          className: 'is-warning',
+          href: '../signup/signup.html'
+        },
+        'reset-success': {
+          title: 'Password reset confirmed',
+          message: 'Your password has been changed successfully. You can now sign in securely.',
+          action: 'Continue to login',
+          support: 'Your previous password is no longer active.',
+          mark: '✓',
+          className: 'is-success',
+          href: '../login/login.html'
+        },
+        'reset-expired': {
+          title: 'Reset confirmation expired',
+          message: 'This confirmation link is invalid or expired. Request a new password reset link.',
+          action: 'Return to login',
+          support: 'Confirmation links are valid for 1 hour.',
+          mark: '!',
+          className: 'is-warning',
+          href: '../login/login.html'
+        }
+      };
+      const selected = content[status] || content.invalid;
+      document.body.classList.add(selected.className);
+      document.getElementById('statusMark').textContent = selected.mark;
+      document.getElementById('statusTitle').textContent = selected.title;
+      document.getElementById('statusMessage').textContent = selected.message;
+      document.getElementById('statusAction').textContent = selected.action;
+      document.getElementById('statusAction').href = selected.href;
+      document.getElementById('supportText').textContent = selected.support;
+
+      const verifiedEmail = new URLSearchParams(window.location.search).get('email');
+      if (status === 'success' && verifiedEmail) {
+        const verifiedEmailElement = document.getElementById('verifiedEmail');
+        verifiedEmailElement.textContent = verifiedEmail;
+        verifiedEmailElement.hidden = false;
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UMAK Smart Locker Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+  <body class="dashboard-page">
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <img src="../../Photos/UMAKLogo.png" alt="UMAK Logo" class="umak-logo-image sidebar-logo" />
+          <div>
+            <h5>UMAK</h5>
+            <small>Locker System</small>
+          </div>
+        </div>
+
+        <nav class="sidebar-nav">
+          <a href="#dashboard" class="nav-item active">
+            <span>🏠</span>
+            <span>Dashboard</span>
+          </a>
+          <a href="#locker" class="nav-item">
+            <span>🔒</span>
+            <span>My Locker</span>
+          </a>
+          <a href="#reservations" class="nav-item">
+            <span>📅</span>
+            <span>Reservations</span>
+          </a>
+          <a href="#history" class="nav-item">
+            <span>📜</span>
+            <span>Access History</span>
+          </a>
+          <a href="#profile" class="nav-item">
+            <span>👤</span>
+            <span>Profile</span>
+          </a>
+          <button class="nav-item logout-item" data-action="logout" type="button">
+            <span>🚪</span>
+            <span>Logout</span>
+          </button>
+        </nav>
+      </aside>
+
+      <main class="main-panel">
+        <header class="topbar">
+          <div>
+            <p class="topbar-label">Campus Portal</p>
+            <h3>Student Dashboard</h3>
+          </div>
+          <div class="topbar-actions">
+            <button class="icon-button" type="button" aria-label="Notifications">🔔</button>
+            <div class="user-pill">
+                <span class="user-avatar" data-user-avatar>--</span>
+              <div>
+                <strong data-user-full-name>Loading...</strong>
+                <small data-user-student-id>Student</small>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <section id="dashboard" class="page-section">
+          <div class="welcome-panel card-soft">
+            <div>
+              <p class="eyebrow">Welcome back</p>
+              <h1>Good morning, <span data-user-first-name>Student</span>!</h1>
+              <p class="subtitle">Manage and monitor your assigned smart locker.</p>
+            </div>
+            <div class="welcome-badge">Active</div>
+          </div>
+
+          <div class="status-grid">
+            <div class="locker-status card-soft">
+              <div class="section-header">
+                <h4>Locker Status</h4>
+                <span class="status-tag status-occupied" data-current-status>No active locker</span>
+              </div>
+
+              <dl class="status-list">
+                <div>
+                  <dt>Building</dt>
+                  <dd data-current-building>—</dd>
+                </div>
+                <div>
+                  <dt>Floor</dt>
+                  <dd data-current-floor>—</dd>
+                </div>
+                <div>
+                  <dt>Locker Number</dt>
+                  <dd data-current-locker>—</dd>
+                </div>
+                <div>
+                  <dt>Status</dt>
+                  <dd data-current-status-text>—</dd>
+                </div>
+                <div>
+                  <dt>User</dt>
+                  <dd data-user-full-name>Loading...</dd>
+                </div>
+                <div>
+                  <dt>Reservation</dt>
+                  <dd data-current-reservation>—</dd>
+                </div>
+                <div>
+                  <dt>Expiration</dt>
+                  <dd data-current-expiration>—</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div class="quick-actions card-soft">
+              <div class="section-header">
+                <h4>Quick Actions</h4>
+              </div>
+              <div class="quick-grid">
+                <button type="button" class="quick-card" data-action="reserve">
+                  <span class="quick-icon">📅</span>
+                  <span>Reserve Locker</span>
+                </button>
+                <button type="button" class="quick-card" data-action="unlock">
+                  <span class="quick-icon">🔓</span>
+                  <span>Unlock Locker</span>
+                </button>
+                <button type="button" class="quick-card" data-action="history">
+                  <span class="quick-icon">🕘</span>
+                  <span>View History</span>
+                </button>
+                <button type="button" class="quick-card" data-action="problem">
+                  <span class="quick-icon">⚠️</span>
+                  <span>Report Problem</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div id="locker" class="content-section">
+            <div class="section-header mb-3">
+              <h4>Locker Overview</h4>
+            </div>
+
+            <div class="building-tabs" data-building-tabs role="tablist" aria-label="Locker buildings"></div>
+            <div class="locker-grid" data-lockers>
+              <p class="locker-empty">Loading locker availability...</p>
+            </div>
+            <button class="see-more-button" data-see-more type="button" hidden>See more</button>
+          </div>
+
+          <div id="reservations" class="content-section table-card card-soft">
+            <div class="section-header"><h4>My Reservations</h4></div>
+            <div class="table-responsive mt-3">
+              <table class="table align-middle">
+                <thead><tr><th>Locker</th><th>Requested</th><th>Start</th><th>Expires</th><th>Status</th></tr></thead>
+                <tbody data-reservations><tr><td colspan="5">Loading reservations...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="two-column-layout">
+            <div id="history" class="table-card card-soft">
+              <div class="section-header">
+                <h4>Recent Access History</h4>
+              </div>
+
+              <div class="table-responsive mt-3">
+                <table class="table align-middle">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Time</th>
+                      <th>Locker</th>
+                      <th>Action</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>August 17, 2026</td>
+                      <td>8:30 AM</td>
+                      <td>L-001</td>
+                      <td>Locker Opened</td>
+                      <td><span class="status-badge success">Successful</span></td>
+                    </tr>
+                    <tr>
+                      <td>August 16, 2026</td>
+                      <td>5:12 PM</td>
+                      <td>L-001</td>
+                      <td>Locker Closed</td>
+                      <td><span class="status-badge success">Successful</span></td>
+                    </tr>
+                    <tr>
+                      <td>August 16, 2026</td>
+                      <td>8:15 AM</td>
+                      <td>L-001</td>
+                      <td>Locker Opened</td>
+                      <td><span class="status-badge success">Successful</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div id="notifications" class="notifications card-soft">
+              <div class="section-header">
+                <h4>Notifications</h4>
+              </div>
+              <ul class="notification-list">
+                <li>📣 Locker L-001 successfully unlocked.</li>
+                <li>⏰ Your locker reservation expires today.</li>
+                <li>🛠️ Locker maintenance scheduled.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal fade" id="lockerActionModal" tabindex="-1" aria-labelledby="lockerActionModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header border-0">
+            <h5 class="modal-title" id="lockerActionModalLabel">Smart Locker Update</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" id="lockerActionMessage"></div>
+          <div class="modal-footer border-0">
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../../assets/js/script.js?v=20260823-4"></script>
+    <script src="dashboard.js"></script>
+  </body>
+</html>

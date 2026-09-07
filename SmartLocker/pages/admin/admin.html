@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Control Center | SmartLocker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="admin.css" />
+  </head>
+  <body>
+    <div class="admin-shell">
+      <aside class="admin-sidebar">
+        <div class="brand">
+          <img src="../../Photos/UMAKLogo.png" alt="UMAK Logo" />
+          <div><strong>SmartLocker</strong><span>Operations center</span></div>
+        </div>
+        <nav>
+          <a class="active" href="#overview"><span>▦</span>Overview</a>
+          <a href="#lockers"><span>▣</span>Locker network</a>
+          <a href="#reservations"><span>◷</span>Reservations</a>
+          <a href="#maintenance"><span>⚠</span>Maintenance</a>
+          <a href="#activity"><span>↗</span>Access activity</a>
+          <a href="#users"><span>◎</span>Students</a>
+        </nav>
+        <button class="logout" type="button" data-action="logout"><span>←</span>Sign out</button>
+      </aside>
+
+      <main class="admin-main">
+        <header class="admin-header">
+          <div><p class="kicker">UMAK / administration</p><h1>Control center</h1></div>
+          <div class="admin-identity"><span class="avatar">LA</span><div><strong>Locker Admin</strong><small>Administrator</small></div></div>
+        </header>
+
+        <section id="overview" class="hero-strip">
+          <div><p class="kicker">System status</p><h2>Keep every locker moving.</h2><p>Monitor availability, approve requests, and resolve issues from one place.</p></div>
+          <span class="live-indicator"><i></i>Live monitoring</span>
+        </section>
+
+        <section class="metrics" aria-label="System summary">
+          <article><span class="metric-label">Registered students</span><strong data-count="users">--</strong><small>Active accounts</small></article>
+          <article><span class="metric-label">Total lockers</span><strong data-count="lockers">--</strong><small><b data-count="available_lockers">--</b> available now</small></article>
+          <article class="metric-alert"><span class="metric-label">Pending reservations</span><strong data-count="pending_reservations">--</strong><small>Needs review</small></article>
+          <article class="metric-alert"><span class="metric-label">Open maintenance</span><strong data-count="open_reports">--</strong><small><b data-count="maintenance_lockers">--</b> lockers flagged</small></article>
+        </section>
+
+        <section id="lockers" class="panel">
+          <div class="panel-heading"><div><p class="kicker">Inventory</p><h2>Locker network</h2></div><button class="ghost-button" type="button" data-refresh>Refresh data</button></div>
+          <form class="locker-form" data-create-locker>
+            <input name="building" placeholder="Building" required />
+            <input name="floor" placeholder="Floor" required />
+            <input name="area" placeholder="Area (optional)" />
+            <input name="locker_number" placeholder="Locker number" required />
+            <select name="size" aria-label="Locker size"><option value="small">Small</option><option value="medium" selected>Medium</option><option value="large">Large</option></select>
+            <button type="submit">Add locker</button>
+          </form>
+          <div class="building-tabs" data-building-tabs role="tablist" aria-label="Locker buildings"></div>
+          <div class="table-wrap"><table><thead><tr><th>Locker</th><th>Location</th><th>Size</th><th>Device</th><th>Status</th><th>Action</th></tr></thead><tbody data-lockers><tr><td colspan="6" class="empty">Loading locker network...</td></tr></tbody></table></div>
+          <button class="see-more-button" data-see-more type="button" hidden>See more</button>
+        </section>
+
+        <div class="split-grid">
+          <section id="reservations" class="panel"><div class="panel-heading"><div><p class="kicker">Queue</p><h2>Reservation requests</h2></div></div><div class="stack" data-reservations><p class="empty">Loading reservations...</p></div></section>
+          <section id="maintenance" class="panel"><div class="panel-heading"><div><p class="kicker">Service desk</p><h2>Maintenance queue</h2></div></div><div class="stack" data-reports><p class="empty">Loading reports...</p></div></section>
+        </div>
+
+        <div class="split-grid lower-grid">
+          <section id="activity" class="panel"><div class="panel-heading"><div><p class="kicker">Audit trail</p><h2>Recent access</h2></div></div><div class="table-wrap"><table><thead><tr><th>Time</th><th>Locker</th><th>Student</th><th>Event</th><th>Result</th></tr></thead><tbody data-activity><tr><td colspan="5" class="empty">Loading activity...</td></tr></tbody></table></div></section>
+          <section id="users" class="panel"><div class="panel-heading"><div><p class="kicker">Directory</p><h2>New students</h2></div></div><div class="student-list" data-users><p class="empty">Loading students...</p></div></section>
+        </div>
+      </main>
+    </div>
+    <div class="toast" data-toast role="status"></div>
+    <script src="admin.js"></script>
+  </body>
+</html>
