@@ -35,6 +35,69 @@ $adminStatement->execute([
 ]);
 $adminUser = $adminStatement->fetch();
 
+if ($adminUser) {
+    $attemptStatement = getDatabaseConnection()->prepare(
+        'SELECT failed_attempts FROM login_attempts
+         WHERE identifier = :identifier AND ip_address = :ip_address LIMIT 1'
+    );
+    $attemptStatement->execute([':identifier' => $normalizedIdentifier, ':ip_address' => $ipAddress]);
+    $attempt = $attemptStatement->fetch();
+    if ($attempt && (int) $attempt['failed_attempts'] >= 5) {
+        http_response_code(429);
+        echo json_encode(['success' => false, 'locked' => true, 'attempts_remaining' => 0, 'message' => 'Admin login attempts are exhausted. Reset the admin password or clear the lockout before trying again.']);
+        exit;
+    }
+
+    if (!password_verify($password, $adminUser['password_hash'])) {
+        $failedAttempts = ((int) ($attempt['failed_attempts'] ?? 0)) + 1;
+        $attemptUpdate = getDatabaseConnection()->prepare(
+            'INSERT INTO login_attempts (user_id, identifier, ip_address, failed_attempts, locked_at)
+             VALUES (NULL, :identifier, :ip_address, :failed_attempts, IF(:lock_threshold_attempts >= 5, NOW(), NULL))
+             ON DUPLICATE KEY UPDATE user_id = NULL, failed_attempts = VALUES(failed_attempts), locked_at = VALUES(locked_at), last_attempt_at = NOW()'
+        );
+        $attemptUpdate->execute([
+            ':identifier' => $normalizedIdentifier,
+            ':ip_address' => $ipAddress,
+            ':failed_attempts' => $failedAttempts,
+            ':lock_threshold_attempts' => $failedAttempts,
+        ]);
+        $remaining = max(0, 5 - $failedAttempts);
+        $activityStatement = getDatabaseConnection()->prepare(
+            'INSERT INTO login_activity (user_id, identifier, was_successful, failure_reason, ip_address)
+             VALUES (NULL, :identifier, FALSE, \'invalid_admin_password\', :ip_address)'
+        );
+        $activityStatement->execute([
+            ':identifier' => $identifier,
+            ':ip_address' => $ipAddress,
+        ]);
+        http_response_code($remaining === 0 ? 429 : 401);
+        echo json_encode(['success' => false, 'locked' => $remaining === 0, 'attempts_remaining' => $remaining, 'message' => 'Invalid admin username, email, or password.']);
+        exit;
+    }
+
+    getDatabaseConnection()->prepare('DELETE FROM login_attempts WHERE identifier = :identifier AND ip_address = :ip_address')
+        ->execute([':identifier' => $normalizedIdentifier, ':ip_address' => $ipAddress]);
+    session_regenerate_id(true);
+    $_SESSION['user_id'] = (int) $adminUser['id'];
+    $_SESSION['account_type'] = 'admin';
+    $activityStatement = getDatabaseConnection()->prepare(
+        'INSERT INTO login_activity (user_id, identifier, was_successful, ip_address)
+         VALUES (NULL, :identifier, TRUE, :ip_address)'
+    );
+    $activityStatement->execute([':identifier' => $identifier, ':ip_address' => $ipAddress]);
+    echo json_encode([
+        'success' => true,
+        'user' => [
+            'first_name' => 'Administrator',
+            'last_name' => 'Admin',
+            'username' => $adminUser['username'],
+            'email' => $adminUser['email'],
+            'account_type' => 'admin',
+        ],
+    ]);
+    exit;
+}
+
 $userStatement = getDatabaseConnection()->prepare(
     'SELECT id, first_name, last_name, student_id, email, password_hash, profile_picture
      FROM users
@@ -71,42 +134,8 @@ if ($attempt && (int) $attempt['failed_attempts'] >= 5) {
     exit;
 }
 
-if ($adminUser && password_verify($password, $adminUser['password_hash'])) {
-    getDatabaseConnection()->prepare('DELETE FROM login_attempts WHERE identifier = :identifier AND ip_address = :ip_address')
-        ->execute([':identifier' => $normalizedIdentifier, ':ip_address' => $ipAddress]);
-
-    session_regenerate_id(true);
-    $_SESSION['user_id'] = (int) $adminUser['id'];
-    $_SESSION['account_type'] = 'admin';
-
-    $activityStatement = getDatabaseConnection()->prepare(
-        'INSERT INTO login_activity (user_id, identifier, was_successful, ip_address)
-         VALUES (:user_id, :identifier, TRUE, :ip_address)'
-    );
-    $activityStatement->execute([
-        ':user_id' => null,
-        ':identifier' => $identifier,
-        ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? null,
-    ]);
-
-    echo json_encode([
-        'success' => true,
-        'user' => [
-            'first_name' => 'Administrator',
-            'last_name' => 'Admin',
-            'username' => $adminUser['username'],
-            'email' => $adminUser['email'],
-            'account_type' => 'admin',
-        ],
-    ]);
-    exit;
-}
-
-if (!$user && !$adminUser) {
+if (!$user) {
     $identifierType = filter_var($identifier, FILTER_VALIDATE_EMAIL) ? 'email address' : 'student ID';
-    if ($adminUser) {
-        $identifierType = 'admin account';
-    }
     http_response_code(404);
     echo json_encode(['success' => false, 'message' => "That {$identifierType} does not exist. Please sign up to create an account."]);
     exit;

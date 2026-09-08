@@ -21,6 +21,12 @@ function reconcileExpiredReservations(PDO $connection): void
         }
 
         $connection->exec(
+            "UPDATE locker_assignments
+             SET status = 'expired', released_at = NOW()
+             WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at <= NOW()"
+        );
+
+        $connection->exec(
             "UPDATE lockers l
              SET status = CASE
                  WHEN EXISTS (SELECT 1 FROM reservations p WHERE p.locker_id = l.id AND p.status = 'pending') THEN 'pending'

@@ -158,7 +158,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       fetch(loginForm.action, { method: 'POST', body: new FormData(loginForm) })
         .then(async (response) => {
-          const result = await response.json();
+          const responseText = await response.text();
+          let result;
+          try {
+            result = JSON.parse(responseText);
+          } catch (error) {
+            throw new Error('The login server returned an invalid response. Check that Apache and PHP are running, then try again.');
+          }
           if (response.status === 403) {
             loginForm.hidden = false;
             document.getElementById('loginLockout').hidden = true;
@@ -217,7 +223,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       fetch('../../php/google_login.php', { method: 'POST', body: formData })
         .then(async (serverResponse) => {
-          const result = await serverResponse.json();
+          const responseText = await serverResponse.text();
+          let result;
+          try {
+            result = JSON.parse(responseText);
+          } catch (error) {
+            throw new Error('The Google login server returned an invalid response. Please refresh the page and try again.');
+          }
           if (serverResponse.status === 429) {
             setGoogleLoginDisabled(true);
           }
@@ -228,7 +240,9 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!serverResponse.ok || result.success !== true) {
             throw new Error(result.message || 'Google login failed.');
           }
-          window.location.href = '../dashboard/dashboard.html';
+          window.location.href = result.user?.account_type === 'admin'
+            ? '../admin/admin.html'
+            : '../dashboard/dashboard.html';
         })
         .catch((error) => alert(error.message));
     };
