@@ -15,6 +15,7 @@ try {
         "SELECT l.id, l.locker_number, l.status, l.size, l.description,
                 ll.building, ll.floor, ll.area,
                 CASE
+                    WHEN l.status IN ('maintenance', 'offline', 'occupied') THEN l.status
                     WHEN EXISTS (SELECT 1 FROM reservations p WHERE p.locker_id = l.id AND p.status = 'pending') THEN 'pending'
                     WHEN EXISTS (SELECT 1 FROM reservations a WHERE a.locker_id = l.id AND a.status IN ('approved', 'active')) THEN 'reserved'
                     ELSE l.status
