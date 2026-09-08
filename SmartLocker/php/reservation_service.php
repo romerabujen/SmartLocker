@@ -34,7 +34,7 @@ function reconcileExpiredReservations(PDO $connection): void
                  WHEN l.status IN ('pending', 'reserved', 'occupied') THEN 'available'
                  ELSE l.status
              END
-             WHERE l.status IN ('pending', 'reserved', 'occupied')"
+             WHERE l.status IN ('pending', 'reserved')"
         );
         $connection->commit();
     } catch (Throwable $exception) {
