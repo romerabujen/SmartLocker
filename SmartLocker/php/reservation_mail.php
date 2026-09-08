@@ -121,3 +121,50 @@ function sendReservationDecisionNotification(PDO $connection, int $reservationId
 
     return sendReservationNotification($reservation['email'], $subject, $message);
 }
+
+function sendLockerAssignmentNotification(PDO $connection, int $assignmentId, string $event, string $reason): bool
+{
+    $statement = $connection->prepare(
+        'SELECT u.first_name, u.email, a.status AS assignment_status,
+                l.locker_number, ll.building, ll.floor, ll.area
+         FROM locker_assignments a
+         INNER JOIN users u ON u.id = a.user_id
+         INNER JOIN lockers l ON l.id = a.locker_id
+         INNER JOIN locker_locations ll ON ll.id = l.location_id
+         WHERE a.id = :assignment_id
+         LIMIT 1'
+    );
+    $statement->execute([':assignment_id' => $assignmentId]);
+    $assignment = $statement->fetch();
+    if (!$assignment) {
+        return false;
+    }
+
+    $location = implode(' / ', array_filter([
+        $assignment['building'],
+        $assignment['floor'],
+        $assignment['area'],
+    ], static fn ($value): bool => $value !== null && $value !== ''));
+    $loginUrl = rtrim((string) constant('APP_BASE_URL'), '/') . '/pages/login/login.html';
+    $maintenance = $event === 'maintenance_started' || $event === 'maintenance_completed';
+    if ($event === 'maintenance_completed') {
+        $subject = 'Your SmartLocker is ready to use again';
+        $message = "Hello {$assignment['first_name']},\n\n"
+            . "Maintenance for your SmartLocker has been completed. You may use the locker again.\n\n";
+    } else {
+        $subject = $maintenance
+            ? 'Your SmartLocker will undergo maintenance'
+            : 'Your SmartLocker assignment has been ended';
+        $message = "Hello {$assignment['first_name']},\n\n"
+            . ($maintenance
+                ? "Your locker has been tagged for maintenance. Please vacate it within 24 hours. We will notify you once the maintenance is complete.\n\n"
+                : "Your locker assignment has been ended. Please vacate the locker within 24 hours.\n\n");
+    }
+
+    $message .= "Locker: {$assignment['locker_number']}\n"
+        . "Location: {$location}\n"
+        . "Reason: {$reason}\n\n"
+        . "Log in to SmartLocker:\n{$loginUrl}\n\nThank you,\nSmartLocker Administration";
+
+    return sendReservationNotification($assignment['email'], $subject, $message);
+}

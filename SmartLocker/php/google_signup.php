@@ -24,18 +24,24 @@ if ($credential === '' || $studentId === '' || $password === '') {
 }
 
 $tokenContext = stream_context_create(['http' => ['ignore_errors' => true, 'timeout' => 10]]);
-$tokenResponse = file_get_contents(
+ $tokenResponse = @file_get_contents(
     'https://oauth2.googleapis.com/tokeninfo?id_token=' . rawurlencode($credential),
     false,
     $tokenContext
 );
+$tokenResponse = $tokenResponse === false ? null : $tokenResponse;
+if ($tokenResponse === null) {
+    http_response_code(503);
+    echo json_encode(['success' => false, 'message' => 'Google verification is temporarily unavailable. Please try again.']);
+    exit;
+}
 $googleUser = $tokenResponse !== false ? json_decode($tokenResponse, true) : null;
 
 $email = strtolower((string) ($googleUser['email'] ?? ''));
 $isValidToken = is_array($googleUser)
     && defined('GOOGLE_CLIENT_ID')
     && ($googleUser['aud'] ?? '') === constant('GOOGLE_CLIENT_ID')
-    && ($googleUser['email_verified'] ?? '') === 'true'
+    && filter_var($googleUser['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN)
     && str_ends_with($email, '@umak.edu.ph');
 
 if (!$isValidToken) {

@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character]));
   const formatDate = (value) => value ? new Date(value.replace(' ', 'T')).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '—';
   const buildingTabsElement = document.querySelector('[data-building-tabs]');
+  const assignedModal = document.querySelector('[data-assigned-modal]');
+  const assignedLockersElement = document.querySelector('[data-assigned-lockers]');
   const seeMoreButton = document.querySelector('[data-see-more]');
   let lockers = [];
   let selectedBuilding = '';
@@ -34,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     lockers = result.lockers;
     renderLockers();
+    renderAssignedLockers(result.assigned_lockers || []);
 
     document.querySelector('[data-reservations]').innerHTML = result.reservations.length ? result.reservations.map((reservation) => `<article class="queue-item"><div><strong>${escapeHtml(reservation.locker_number)} · ${escapeHtml(reservation.first_name)} ${escapeHtml(reservation.last_name)}</strong><p>${escapeHtml(reservation.student_id)} · Requested ${formatDate(reservation.requested_at)}${reservation.ends_at ? ` · ${formatDate(reservation.starts_at)} to ${formatDate(reservation.ends_at)}` : ''}</p></div><div class="queue-actions">${reservation.status === 'pending' ? `<select data-reservation-duration="${reservation.id}" aria-label="Reservation duration"><option value="">Duration</option><option value="1_week">1 Week</option><option value="2_weeks">2 Weeks</option><option value="3_weeks">3 Weeks</option><option value="1_month">1 Month</option></select><button data-reservation-id="${reservation.id}" data-reservation-status="approved">Approve</button><button class="danger" data-reservation-id="${reservation.id}" data-reservation-status="rejected">Reject</button>` : `<span class="status ${escapeHtml(reservation.status)}">${escapeHtml(reservation.status)}</span>`}</div></article>`).join('') : '<p class="empty">No reservation history yet.</p>';
 
@@ -41,6 +44,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelector('[data-activity]').innerHTML = result.access_logs.length ? result.access_logs.map((log) => `<tr><td>${formatDate(log.occurred_at)}</td><td>${escapeHtml(log.locker_number)}</td><td>${escapeHtml(log.student_id || 'System')}</td><td>${escapeHtml(log.event_type)}</td><td><span class="result ${log.was_successful ? 'success' : 'failed'}">${log.was_successful ? 'Success' : 'Denied'}</span></td></tr>`).join('') : '<tr><td colspan="5" class="empty">No access activity recorded.</td></tr>';
     document.querySelector('[data-users]').innerHTML = result.recent_users.length ? result.recent_users.map((user) => `<div class="student-row"><span class="student-avatar">${escapeHtml((user.first_name?.[0] || '') + (user.last_name?.[0] || ''))}</span><div><strong>${escapeHtml(user.first_name)} ${escapeHtml(user.last_name)}</strong><small>${escapeHtml(user.student_id)} · ${escapeHtml(user.email)}</small></div></div>`).join('') : '<p class="empty">No student accounts yet.</p>';
+  };
+
+  const renderAssignedLockers = (assignments) => {
+    assignedLockersElement.innerHTML = assignments.length ? assignments.map((assignment) => `<tr><td><strong>${escapeHtml(assignment.locker_number)}</strong><small class="table-subtext">${escapeHtml([assignment.building, assignment.floor, assignment.area].filter(Boolean).join(' / '))}</small></td><td><strong>${escapeHtml(assignment.first_name)} ${escapeHtml(assignment.last_name)}</strong><small class="table-subtext">${escapeHtml(assignment.student_id)}</small></td><td>${formatDate(assignment.assigned_at)}</td><td>${formatDate(assignment.expires_at)}</td><td class="assigned-actions"><button type="button" data-unassign-id="${assignment.id}">Unassign</button>${assignment.locker_status === 'maintenance' ? `<button type="button" class="maintenance-button" data-complete-maintenance-id="${assignment.locker_id}">Maintenance done</button>` : `<button type="button" class="maintenance-button" data-maintain-locker-id="${assignment.locker_id}">Maintenance</button>`}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No assigned lockers.</td></tr>';
   };
 
   const renderLockers = () => {
@@ -76,6 +83,42 @@ document.addEventListener('DOMContentLoaded', () => {
     const report = event.target.closest('[data-report-id]');
     const editLocker = event.target.closest('[data-edit-locker]');
     const deleteLocker = event.target.closest('[data-delete-locker-id]');
+    const unassign = event.target.closest('[data-unassign-id]');
+    const maintain = event.target.closest('[data-maintain-locker-id]');
+    const completeMaintenance = event.target.closest('[data-complete-maintenance-id]');
+    if (event.target.closest('[data-open-assigned]')) {
+      assignedModal.hidden = false;
+      return;
+    }
+    if (event.target.closest('[data-close-assigned]')) {
+      assignedModal.hidden = true;
+      return;
+    }
+    if (unassign) {
+      const reason = window.prompt('Reason for unassigning this locker:');
+      if (reason === null || !reason.trim()) return;
+      if (!window.confirm('Unassign this locker? The student will receive a 24-hour vacate notice.')) return;
+      const data = new FormData();
+      data.append('action', 'unassign_locker'); data.append('assignment_id', unassign.dataset.unassignId); data.append('reason', reason.trim());
+      postAction(data).catch((error) => showToast(error.message));
+      return;
+    }
+    if (maintain) {
+      const reason = window.prompt('Maintenance reason (for example, cleaning or regular maintenance):');
+      if (reason === null || !reason.trim()) return;
+      if (!window.confirm('Put this locker on maintenance? The student will receive a 24-hour vacate notice.')) return;
+      const data = new FormData();
+      data.append('action', 'maintain_assigned_locker'); data.append('locker_id', maintain.dataset.maintainLockerId); data.append('reason', reason.trim());
+      postAction(data).catch((error) => showToast(error.message));
+      return;
+    }
+    if (completeMaintenance) {
+      if (!window.confirm('Mark maintenance as done and notify the student that the locker is ready?')) return;
+      const data = new FormData();
+      data.append('action', 'complete_assigned_maintenance'); data.append('locker_id', completeMaintenance.dataset.completeMaintenanceId);
+      postAction(data).catch((error) => showToast(error.message));
+      return;
+    }
     if (editLocker) {
       const locker = JSON.parse(editLocker.dataset.editLocker);
       const lockerNumber = window.prompt('Locker number:', locker.locker_number);

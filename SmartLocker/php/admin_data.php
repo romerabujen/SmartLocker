@@ -28,6 +28,20 @@ $lockers = $connection->query(
     ORDER BY locker_locations.building, locker_locations.floor, lockers.locker_number'
 )->fetchAll();
 
+$assignedLockers = $connection->query(
+        "SELECT locker_assignments.id, locker_assignments.locker_id, locker_assignments.assigned_at,
+            locker_assignments.expires_at, locker_assignments.status, lockers.locker_number,
+            locker_assignments.notes, lockers.status AS locker_status,
+            users.first_name, users.last_name, users.student_id,
+            locker_locations.building, locker_locations.floor, locker_locations.area
+     FROM locker_assignments
+     INNER JOIN lockers ON lockers.id = locker_assignments.locker_id
+     INNER JOIN users ON users.id = locker_assignments.user_id
+     INNER JOIN locker_locations ON locker_locations.id = lockers.location_id
+     WHERE locker_assignments.status = 'active'
+     ORDER BY locker_assignments.assigned_at DESC"
+)->fetchAll();
+
 $reservations = $connection->query(
         "SELECT reservations.id, reservations.requested_at, reservations.approved_at,
             reservations.starts_at, reservations.ends_at, reservations.duration, reservations.status,
@@ -71,6 +85,7 @@ echo json_encode([
     'success' => true,
     'counts' => $counts,
     'lockers' => $lockers,
+    'assigned_lockers' => $assignedLockers,
     'reservations' => $reservations,
     'reports' => $reports,
     'access_logs' => $accessLogs,

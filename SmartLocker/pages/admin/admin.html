@@ -18,6 +18,7 @@
         </div>
         <nav>
           <a class="active" href="#overview"><span>▦</span>Overview</a>
+          <a href="#assigned-lockers" data-open-assigned><span>▤</span>Assigned Lockers</a>
           <a href="#lockers"><span>▣</span>Locker network</a>
           <a href="#reservations"><span>◷</span>Reservations</a>
           <a href="#maintenance"><span>⚠</span>Maintenance</a>
@@ -70,6 +71,13 @@
           <section id="users" class="panel"><div class="panel-heading"><div><p class="kicker">Directory</p><h2>New students</h2></div></div><div class="student-list" data-users><p class="empty">Loading students...</p></div></section>
         </div>
       </main>
+    </div>
+    <div class="assigned-modal" data-assigned-modal hidden>
+      <div class="assigned-modal-backdrop" data-close-assigned></div>
+      <section class="assigned-dialog" role="dialog" aria-modal="true" aria-labelledby="assigned-title">
+        <div class="panel-heading"><div><p class="kicker">Current assignments</p><h2 id="assigned-title">Assigned lockers</h2></div><button class="modal-close" type="button" data-close-assigned aria-label="Close assigned lockers">&times;</button></div>
+        <div class="table-wrap"><table><thead><tr><th>Locker</th><th>Student</th><th>Assigned</th><th>Expires</th><th>Action</th></tr></thead><tbody data-assigned-lockers><tr><td colspan="5" class="empty">Loading assigned lockers...</td></tr></tbody></table></div>
+      </section>
     </div>
     <div class="toast" data-toast role="status"></div>
     <script src="admin.js"></script>

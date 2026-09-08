@@ -20,17 +20,23 @@ if ($credential === '') {
 }
 
 $tokenContext = stream_context_create(['http' => ['ignore_errors' => true, 'timeout' => 10]]);
-$tokenResponse = file_get_contents(
+ $tokenResponse = @file_get_contents(
     'https://oauth2.googleapis.com/tokeninfo?id_token=' . rawurlencode($credential),
     false,
     $tokenContext
 );
+$tokenResponse = $tokenResponse === false ? null : $tokenResponse;
+if ($tokenResponse === null) {
+    http_response_code(503);
+    echo json_encode(['success' => false, 'message' => 'Google verification is temporarily unavailable. Please try again.']);
+    exit;
+}
 $googleUser = $tokenResponse !== false ? json_decode($tokenResponse, true) : null;
 $email = strtolower((string) ($googleUser['email'] ?? ''));
 $isValidToken = is_array($googleUser)
     && defined('GOOGLE_CLIENT_ID')
     && ($googleUser['aud'] ?? '') === constant('GOOGLE_CLIENT_ID')
-    && ($googleUser['email_verified'] ?? '') === 'true'
+    && filter_var($googleUser['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN)
     && str_ends_with($email, '@umak.edu.ph');
 
 if (!$isValidToken) {
@@ -69,16 +75,6 @@ if ($attempt && (int) $attempt['failed_attempts'] >= 5) {
     exit;
 }
 
-$verificationStatement = getDatabaseConnection()->prepare(
-    'SELECT 1 FROM email_verification_tokens WHERE user_id = :user_id AND verified_at IS NOT NULL LIMIT 1'
-);
-$verificationStatement->execute([':user_id' => $user['id']]);
-if (!$verificationStatement->fetchColumn()) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Please verify your email before logging in.']);
-    exit;
-}
-
 $resetStatement = getDatabaseConnection()->prepare(
     'SELECT 1 FROM password_reset_tokens
      WHERE user_id = :user_id AND pending_password_hash IS NOT NULL
@@ -94,6 +90,7 @@ if ($resetStatement->fetchColumn()) {
 
 session_regenerate_id(true);
 $_SESSION['user_id'] = $user['id'];
+$_SESSION['account_type'] = 'student';
 
 $activityStatement = getDatabaseConnection()->prepare(
     'INSERT INTO login_activity (user_id, identifier, was_successful, ip_address)
@@ -113,5 +110,6 @@ echo json_encode([
         'student_id' => $user['student_id'],
         'email' => $user['email'],
         'profile_picture' => $user['profile_picture'],
+        'account_type' => 'student',
     ],
 ]);

@@ -141,6 +141,92 @@ try {
         }
         $statement = $connection->prepare('UPDATE lockers SET status = :status WHERE id = :id');
         $statement->execute([':status' => $status, ':id' => (int) ($_POST['locker_id'] ?? 0)]);
+    } elseif ($action === 'unassign_locker') {
+        $assignmentId = (int) ($_POST['assignment_id'] ?? 0);
+        $reason = trim((string) ($_POST['reason'] ?? ''));
+        if ($assignmentId < 1) {
+            throw new InvalidArgumentException('Select a valid assignment.');
+        }
+        if ($reason === '' || strlen($reason) > 255) {
+            throw new InvalidArgumentException('Enter a reason up to 255 characters.');
+        }
+        $connection->beginTransaction();
+        $assignmentStatement = $connection->prepare(
+            "SELECT id, locker_id FROM locker_assignments WHERE id = :id AND status = 'active' FOR UPDATE"
+        );
+        $assignmentStatement->execute([':id' => $assignmentId]);
+        $assignment = $assignmentStatement->fetch();
+        if (!$assignment) {
+            throw new InvalidArgumentException('This assignment is no longer active.');
+        }
+        $connection->prepare(
+            "UPDATE locker_assignments SET status = 'released', released_at = NOW(), notes = :notes WHERE id = :id"
+        )->execute([':notes' => $reason, ':id' => $assignmentId]);
+        $connection->prepare(
+            "UPDATE reservations SET status = 'completed'
+             WHERE locker_id = :locker_id AND status IN ('approved', 'active')"
+        )->execute([':locker_id' => $assignment['locker_id']]);
+        $connection->prepare(
+            "UPDATE lockers SET status = 'available'
+             WHERE id = :id AND status NOT IN ('maintenance', 'offline')"
+        )->execute([':id' => $assignment['locker_id']]);
+        $connection->commit();
+        try {
+            $notificationSent = sendLockerAssignmentNotification($connection, $assignmentId, 'unassigned', $reason);
+        } catch (Throwable $exception) {
+            $notificationSent = false;
+        }
+    } elseif ($action === 'maintain_assigned_locker') {
+        $lockerId = (int) ($_POST['locker_id'] ?? 0);
+        $reason = trim((string) ($_POST['reason'] ?? ''));
+        if ($lockerId < 1) {
+            throw new InvalidArgumentException('Select a valid locker.');
+        }
+        if ($reason === '' || strlen($reason) > 255) {
+            throw new InvalidArgumentException('Enter a maintenance reason up to 255 characters.');
+        }
+        $assignmentStatement = $connection->prepare(
+            "SELECT id FROM locker_assignments WHERE locker_id = :id AND status = 'active' LIMIT 1"
+        );
+        $assignmentStatement->execute([':id' => $lockerId]);
+        $assignmentId = (int) $assignmentStatement->fetchColumn();
+        if ($assignmentId < 1) {
+            throw new InvalidArgumentException('This locker no longer has an active assignment.');
+        }
+        $connection->prepare("UPDATE locker_assignments SET notes = :notes WHERE id = :id")
+            ->execute([':notes' => $reason, ':id' => $assignmentId]);
+        $connection->prepare("UPDATE lockers SET status = 'maintenance' WHERE id = :id")
+            ->execute([':id' => $lockerId]);
+        try {
+            $notificationSent = sendLockerAssignmentNotification($connection, $assignmentId, 'maintenance_started', $reason);
+        } catch (Throwable $exception) {
+            $notificationSent = false;
+        }
+    } elseif ($action === 'complete_assigned_maintenance') {
+        $lockerId = (int) ($_POST['locker_id'] ?? 0);
+        if ($lockerId < 1) {
+            throw new InvalidArgumentException('Select a valid locker.');
+        }
+        $assignmentStatement = $connection->prepare(
+            "SELECT id, notes FROM locker_assignments WHERE locker_id = :id AND status = 'active' LIMIT 1"
+        );
+        $assignmentStatement->execute([':id' => $lockerId]);
+        $assignment = $assignmentStatement->fetch();
+        if (!$assignment) {
+            throw new InvalidArgumentException('This locker no longer has an active assignment.');
+        }
+        $lockerStatement = $connection->prepare("SELECT status FROM lockers WHERE id = :id LIMIT 1");
+        $lockerStatement->execute([':id' => $lockerId]);
+        if ($lockerStatement->fetchColumn() !== 'maintenance') {
+            throw new InvalidArgumentException('This locker is not currently marked for maintenance.');
+        }
+        $connection->prepare("UPDATE lockers SET status = 'available' WHERE id = :id")
+            ->execute([':id' => $lockerId]);
+        try {
+            $notificationSent = sendLockerAssignmentNotification($connection, (int) $assignment['id'], 'maintenance_completed', (string) ($assignment['notes'] ?? 'Maintenance completed.'));
+        } catch (Throwable $exception) {
+            $notificationSent = false;
+        }
     } elseif ($action === 'update_reservation') {
         $status = trim((string) ($_POST['status'] ?? ''));
         $reservationId = (int) ($_POST['reservation_id'] ?? 0);
@@ -177,7 +263,11 @@ try {
                  WHERE locker_id = :locker_id AND status IN ('approved', 'active') AND id <> :id LIMIT 1"
             );
             $activeStatement->execute([':locker_id' => $locker['id'], ':id' => $reservationId]);
-            if ($activeStatement->fetchColumn() || !in_array($locker['status'], ['available', 'pending'], true)) {
+            $assignmentStatement = $connection->prepare(
+                "SELECT 1 FROM locker_assignments WHERE locker_id = :locker_id AND status = 'active' LIMIT 1"
+            );
+            $assignmentStatement->execute([':locker_id' => $locker['id']]);
+            if ($activeStatement->fetchColumn() || $assignmentStatement->fetchColumn() || !in_array($locker['status'], ['available', 'pending'], true)) {
                 throw new InvalidArgumentException('That locker is no longer available for approval.');
             }
             $startDate = new DateTimeImmutable('now');
@@ -197,6 +287,15 @@ try {
             ]);
             $connection->prepare("UPDATE lockers SET status = 'reserved' WHERE id = :id")
                 ->execute([':id' => $locker['id']]);
+            $connection->prepare(
+                "INSERT INTO locker_assignments (locker_id, user_id, assigned_at, expires_at, status)
+                 SELECT locker_id, user_id, :assigned_at, :expires_at, 'active'
+                 FROM reservations WHERE id = :reservation_id"
+            )->execute([
+                ':assigned_at' => $startDate->format('Y-m-d H:i:s'),
+                ':expires_at' => $expirationDate->format('Y-m-d H:i:s'),
+                ':reservation_id' => $reservationId,
+            ]);
         } else {
             $update = $connection->prepare(
                 "UPDATE reservations SET status = :status_set, cancelled_at = IF(:status_check = 'cancelled', NOW(), cancelled_at) WHERE id = :id"
