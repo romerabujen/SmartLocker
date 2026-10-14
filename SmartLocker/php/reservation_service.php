@@ -5,6 +5,17 @@ function reconcileExpiredReservations(PDO $connection): void
 {
     $connection->beginTransaction();
     try {
+        $connection->exec(
+            "UPDATE reservation_payments SET status = 'expired'
+             WHERE status = 'pending' AND expires_at <= NOW()"
+        );
+        $connection->exec(
+            "UPDATE reservations r
+             INNER JOIN reservation_payments p ON p.reservation_id = r.id
+             SET r.status = 'cancelled', r.cancelled_at = NOW()
+             WHERE p.status = 'expired' AND r.status = 'pending'"
+        );
+
         $expired = $connection->query(
             "SELECT id, locker_id FROM reservations
              WHERE status IN ('approved', 'active') AND ends_at IS NOT NULL AND ends_at <= NOW()

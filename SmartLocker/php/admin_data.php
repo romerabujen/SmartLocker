@@ -45,10 +45,13 @@ $assignedLockers = $connection->query(
 $reservations = $connection->query(
         "SELECT reservations.id, reservations.requested_at, reservations.approved_at,
             reservations.starts_at, reservations.ends_at, reservations.duration, reservations.status,
+            reservation_payments.status AS payment_status, reservation_payments.amount_pesos,
+            reservation_payments.payment_mode,
             reservations.purpose, lockers.locker_number, users.first_name, users.last_name, users.student_id
      FROM reservations
      INNER JOIN lockers ON lockers.id = reservations.locker_id
      INNER JOIN users ON users.id = reservations.user_id
+         LEFT JOIN reservation_payments ON reservation_payments.reservation_id = reservations.id
     ORDER BY reservations.requested_at DESC
     LIMIT 200"
 )->fetchAll();

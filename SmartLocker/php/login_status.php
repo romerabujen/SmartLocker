@@ -57,6 +57,14 @@ $statement = getDatabaseConnection()->prepare(
 $statement->execute([':identifier' => $normalizedIdentifier, ':ip_address' => $ipAddress]);
 $attempt = $statement->fetch();
 $failedAttempts = (int) ($attempt['failed_attempts'] ?? 0);
+if ($user) {
+    $accountAttemptStatement = getDatabaseConnection()->prepare(
+        'SELECT COALESCE(SUM(failed_attempts), 0) FROM login_attempts
+         WHERE user_id = :user_id AND ip_address = :ip_address'
+    );
+    $accountAttemptStatement->execute([':user_id' => $user['id'], ':ip_address' => $ipAddress]);
+    $failedAttempts = (int) $accountAttemptStatement->fetchColumn();
+}
 
 $locked = $failedAttempts >= 5 && $message === null;
 

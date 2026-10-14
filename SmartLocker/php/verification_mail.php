@@ -23,9 +23,9 @@ function sendVerificationEmail(PDO $connection, int $userId, string $email, stri
 
     $baseUrl = defined('APP_BASE_URL') ? constant('APP_BASE_URL') : '';
     $mailFrom = defined('MAIL_FROM') ? constant('MAIL_FROM') : '';
-    $verificationUrl = $baseUrl . '/php/email_verification.php?token=' . urlencode($token);
+    $verificationUrl = $baseUrl . '/pages/verify/verify.html?verify_token=' . urlencode($token);
     $subject = 'Verify your SmartLocker email address';
-    $message = "Hello {$firstName},\n\nClick the link below to verify your SmartLocker email address:\n{$verificationUrl}\n\nThis link expires in 24 hours.";
+    $message = "Hello {$firstName},\n\nOpen the link below, then select Confirm email address to verify your SmartLocker account:\n{$verificationUrl}\n\nThis link expires in 24 hours.";
     $mailer = new PHPMailer(true);
     $mailer->isSMTP();
     $mailer->Host = (string) constant('SMTP_HOST');
@@ -90,7 +90,7 @@ function sendPasswordResetConfirmationEmail(PDO $connection, int $resetId, strin
 
     $baseUrl = defined('APP_BASE_URL') ? constant('APP_BASE_URL') : '';
     $mailFrom = defined('MAIL_FROM') ? constant('MAIL_FROM') : '';
-    $confirmationUrl = $baseUrl . '/php/password_reset_confirmation.php?token=' . urlencode($token);
+    $confirmationUrl = $baseUrl . '/pages/verify/verify.html?reset_token=' . urlencode($token);
     $mailer = new PHPMailer(true);
     $mailer->isSMTP();
     $mailer->Host = (string) constant('SMTP_HOST');
@@ -102,7 +102,7 @@ function sendPasswordResetConfirmationEmail(PDO $connection, int $resetId, strin
     $mailer->setFrom($mailFrom, 'SmartLocker');
     $mailer->addAddress($email);
     $mailer->Subject = 'Confirm your SmartLocker password reset';
-    $mailer->Body = "Hello {$firstName},\n\nConfirm your password reset by clicking this link:\n{$confirmationUrl}\n\nThis link expires in 1 hour.";
+    $mailer->Body = "Hello {$firstName},\n\nOpen the link below, then select Confirm password reset to apply your new password:\n{$confirmationUrl}\n\nThis link expires in 1 hour.";
 
     try {
         return $mailer->send();

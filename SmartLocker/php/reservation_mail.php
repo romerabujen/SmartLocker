@@ -28,6 +28,31 @@ function sendReservationNotification(string $email, string $subject, string $mes
     }
 }
 
+function sendPaymentReceiptNotification(
+    string $email,
+    string $payerName,
+    string $payerPhone,
+    int $amountPesos,
+    string $lockerNumber,
+    string $duration,
+    int $reservationId
+): bool {
+    $message = "Hello {$payerName},\n\n"
+        . "We received your SmartLocker payment. It is being verified by an administrator; your locker will be assigned only after approval.\n\n"
+        . "Receipt details\n"
+        . "Payment status: Pending verification\n"
+        . "Reservation: #{$reservationId}\n"
+        . "Locker: {$lockerNumber}\n"
+        . "Rental term: {$duration}\n"
+        . "Amount paid: PHP " . number_format($amountPesos, 2) . "\n"
+        . "Payer: {$payerName}\n"
+        . "Mobile number: {$payerPhone}\n\n"
+        . "You will receive another email when an administrator approves your reservation.\n\n"
+        . "Thank you,\nSmartLocker";
+
+    return sendReservationNotification($email, 'SmartLocker payment receipt', $message);
+}
+
 function sendReservationRequestNotifications(PDO $connection, int $reservationId): bool
 {
     $statement = $connection->prepare(

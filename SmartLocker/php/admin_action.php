@@ -233,16 +233,17 @@ try {
         if (!in_array($status, ['approved', 'rejected', 'cancelled'], true)) {
             throw new InvalidArgumentException('Invalid reservation decision.');
         }
-        $duration = trim((string) ($_POST['duration'] ?? ''));
-        $durations = ['1_week' => '+1 week', '2_weeks' => '+2 weeks', '3_weeks' => '+3 weeks', '1_month' => '+1 month'];
-        if ($status === 'approved' && !isset($durations[$duration])) {
-            throw new InvalidArgumentException('Select a valid reservation duration.');
-        }
+        $requestedDuration = trim((string) ($_POST['duration'] ?? ''));
+        $durations = ['1_week' => '+1 week', '1_month' => '+1 month', '3_months' => '+3 months'];
 
         reconcileExpiredReservations($connection);
         $connection->beginTransaction();
         $reservationStatement = $connection->prepare(
-            'SELECT id, locker_id, status FROM reservations WHERE id = :id FOR UPDATE'
+                'SELECT reservations.id, reservations.locker_id, reservations.status, reservations.duration,
+                    reservation_payments.status AS payment_status, reservation_payments.payment_mode
+                 FROM reservations
+                 LEFT JOIN reservation_payments ON reservation_payments.reservation_id = reservations.id
+                 WHERE reservations.id = :id FOR UPDATE'
         );
         $reservationStatement->execute([':id' => $reservationId]);
         $reservation = $reservationStatement->fetch();
@@ -258,6 +259,12 @@ try {
         }
 
         if ($status === 'approved') {
+            $duration = $reservation['payment_status'] === 'paid'
+                ? (string) $reservation['duration']
+                : $requestedDuration;
+            if (!isset($durations[$duration])) {
+                throw new InvalidArgumentException('This reservation needs a successful payment and valid rental term before approval.');
+            }
             $activeStatement = $connection->prepare(
                 "SELECT 1 FROM reservations
                  WHERE locker_id = :locker_id AND status IN ('approved', 'active') AND id <> :id LIMIT 1"
@@ -297,6 +304,10 @@ try {
                 ':reservation_id' => $reservationId,
             ]);
         } else {
+            if ($reservation['payment_status'] === 'pending'
+                || ($reservation['payment_status'] === 'paid' && $reservation['payment_mode'] !== 'simulation')) {
+                throw new InvalidArgumentException('A real or unconfirmed payment cannot be rejected here. Resolve its payment first.');
+            }
             $update = $connection->prepare(
                 "UPDATE reservations SET status = :status_set, cancelled_at = IF(:status_check = 'cancelled', NOW(), cancelled_at) WHERE id = :id"
             );

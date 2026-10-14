@@ -60,16 +60,32 @@ if (!$user) {
     exit;
 }
 
+$verificationStatement = getDatabaseConnection()->prepare(
+    'SELECT 1 FROM email_verification_tokens
+     WHERE user_id = :user_id AND verified_at IS NOT NULL
+     LIMIT 1'
+);
+$verificationStatement->execute([':user_id' => $user['id']]);
+if (!$verificationStatement->fetchColumn()) {
+    http_response_code(403);
+    echo json_encode([
+        'success' => false,
+        'requires_verification' => true,
+        'message' => 'Please confirm your SmartLocker verification link before signing in.',
+    ]);
+    exit;
+}
+
 $attemptStatement = getDatabaseConnection()->prepare(
-    'SELECT failed_attempts FROM login_attempts
-     WHERE identifier = :identifier AND ip_address = :ip_address LIMIT 1'
+    'SELECT COALESCE(SUM(failed_attempts), 0) FROM login_attempts
+     WHERE user_id = :user_id AND ip_address = :ip_address'
 );
 $attemptStatement->execute([
-    ':identifier' => $email,
+    ':user_id' => $user['id'],
     ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
 ]);
-$attempt = $attemptStatement->fetch();
-if ($attempt && (int) $attempt['failed_attempts'] >= 5) {
+$accountFailedAttempts = (int) $attemptStatement->fetchColumn();
+if ($accountFailedAttempts >= 5) {
     http_response_code(429);
     echo json_encode(['success' => false, 'locked' => true, 'message' => 'Login attempts are exhausted. Reset your password first.']);
     exit;
@@ -87,6 +103,13 @@ if ($resetStatement->fetchColumn()) {
     echo json_encode(['success' => false, 'message' => 'Please confirm your password reset using the link sent to your email before logging in.']);
     exit;
 }
+
+getDatabaseConnection()->prepare(
+    'DELETE FROM login_attempts WHERE user_id = :user_id AND ip_address = :ip_address'
+)->execute([
+    ':user_id' => $user['id'],
+    ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+]);
 
 session_regenerate_id(true);
 $_SESSION['user_id'] = $user['id'];
