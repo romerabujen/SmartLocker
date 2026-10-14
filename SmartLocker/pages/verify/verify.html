@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
     <title>Email Verification | SmartLocker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -23,11 +24,17 @@
         <p class="status-message" id="statusMessage">Your email address has been confirmed. Your SmartLocker account is ready to use.</p>
         <p class="verified-email" id="verifiedEmail" hidden></p>
         <a class="primary-action" id="statusAction" href="../login/login.html">Continue to login</a>
+        <button class="primary-action confirm-verification" id="confirmVerificationButton" type="button" hidden>Confirm email address</button>
+        <button class="primary-action confirm-reset" id="confirmResetButton" type="button" hidden>Confirm password reset</button>
         <p class="support-text" id="supportText">You can now sign in with your UMAK email and password.</p>
       </section>
     </main>
     <script>
       const status = new URLSearchParams(window.location.search).get('status');
+      const confirmationToken = new URLSearchParams(window.location.search).get('reset_token');
+      const verificationToken = new URLSearchParams(window.location.search).get('verify_token');
+      const confirmVerificationButton = document.getElementById('confirmVerificationButton');
+      const confirmResetButton = document.getElementById('confirmResetButton');
       const content = {
         success: {
           title: 'Email verified',
@@ -76,13 +83,75 @@
         }
       };
       const selected = content[status] || content.invalid;
-      document.body.classList.add(selected.className);
-      document.getElementById('statusMark').textContent = selected.mark;
-      document.getElementById('statusTitle').textContent = selected.title;
-      document.getElementById('statusMessage').textContent = selected.message;
-      document.getElementById('statusAction').textContent = selected.action;
-      document.getElementById('statusAction').href = selected.href;
-      document.getElementById('supportText').textContent = selected.support;
+      const applyStatus = (nextStatus) => {
+        document.body.classList.remove('is-success', 'is-warning');
+        document.body.classList.add(nextStatus.className);
+        document.getElementById('statusAction').hidden = false;
+        confirmVerificationButton.hidden = true;
+        confirmResetButton.hidden = true;
+        document.getElementById('statusMark').textContent = nextStatus.mark;
+        document.getElementById('statusTitle').textContent = nextStatus.title;
+        document.getElementById('statusMessage').textContent = nextStatus.message;
+        document.getElementById('statusAction').textContent = nextStatus.action;
+        document.getElementById('statusAction').href = nextStatus.href;
+        document.getElementById('supportText').textContent = nextStatus.support;
+      };
+      applyStatus(selected);
+
+      if (confirmationToken) {
+        document.body.classList.add('is-warning');
+        document.getElementById('statusMark').textContent = '!';
+        document.getElementById('statusTitle').textContent = 'Confirm password reset';
+        document.getElementById('statusMessage').textContent = 'Confirm to apply the new password to your account.';
+        document.getElementById('supportText').textContent = 'This confirmation link can only be used once and expires after one hour.';
+        document.getElementById('statusAction').hidden = true;
+        confirmResetButton.hidden = false;
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('reset_token');
+        window.history.replaceState(null, '', cleanUrl);
+
+        confirmResetButton.addEventListener('click', async () => {
+          confirmResetButton.disabled = true;
+          const formData = new FormData();
+          formData.append('token', confirmationToken);
+          try {
+            const response = await fetch('../../php/password_reset_confirmation.php', { method: 'POST', body: formData });
+            const result = await response.json();
+            if (!response.ok || !result.success) throw new Error(result.message || 'This confirmation link is invalid or expired.');
+            applyStatus(content['reset-success']);
+          } catch (error) {
+            applyStatus(content['reset-expired']);
+            document.getElementById('statusMessage').textContent = error.message;
+          }
+        });
+      } else if (verificationToken) {
+        document.body.classList.add('is-warning');
+        document.getElementById('statusMark').textContent = '!';
+        document.getElementById('statusTitle').textContent = 'Confirm your email';
+        document.getElementById('statusMessage').textContent = 'Confirm that you control this email address to finish creating your account.';
+        document.getElementById('supportText').textContent = 'Your account will not be available until you confirm this link.';
+        document.getElementById('statusAction').hidden = true;
+        confirmVerificationButton.hidden = false;
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('verify_token');
+        window.history.replaceState(null, '', cleanUrl);
+
+        confirmVerificationButton.addEventListener('click', async () => {
+          confirmVerificationButton.disabled = true;
+          const formData = new FormData();
+          formData.append('token', verificationToken);
+          try {
+            const response = await fetch('../../php/email_verification.php', { method: 'POST', body: formData });
+            const result = await response.json();
+            if (!response.ok || !result.success) throw new Error(result.message || 'This verification link is invalid or expired.');
+            applyStatus(content.success);
+            document.getElementById('statusMessage').textContent = result.message;
+          } catch (error) {
+            applyStatus(content.expired);
+            document.getElementById('statusMessage').textContent = error.message;
+          }
+        });
+      }
 
       const verifiedEmail = new URLSearchParams(window.location.search).get('email');
       if (status === 'success' && verifiedEmail) {

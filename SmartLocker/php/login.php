@@ -36,32 +36,44 @@ $adminStatement->execute([
 $adminUser = $adminStatement->fetch();
 
 if ($adminUser) {
-    $attemptStatement = getDatabaseConnection()->prepare(
-        'SELECT failed_attempts FROM login_attempts
-         WHERE identifier = :identifier AND ip_address = :ip_address LIMIT 1'
+    $adminAttemptIdentifier = strtolower((string) $adminUser['username']);
+    $accountAttemptStatement = getDatabaseConnection()->prepare(
+        'SELECT COALESCE(SUM(failed_attempts), 0) FROM login_attempts
+         WHERE ip_address = :ip_address AND identifier IN (:username, :email)'
     );
-    $attemptStatement->execute([':identifier' => $normalizedIdentifier, ':ip_address' => $ipAddress]);
-    $attempt = $attemptStatement->fetch();
-    if ($attempt && (int) $attempt['failed_attempts'] >= 5) {
+    $accountAttemptStatement->execute([
+        ':ip_address' => $ipAddress,
+        ':username' => $adminAttemptIdentifier,
+        ':email' => strtolower((string) $adminUser['email']),
+    ]);
+    $accountFailedAttempts = (int) $accountAttemptStatement->fetchColumn();
+    if ($accountFailedAttempts >= 5) {
         http_response_code(429);
         echo json_encode(['success' => false, 'locked' => true, 'attempts_remaining' => 0, 'message' => 'Admin login attempts are exhausted. Reset the admin password or clear the lockout before trying again.']);
         exit;
     }
 
     if (!password_verify($password, $adminUser['password_hash'])) {
-        $failedAttempts = ((int) ($attempt['failed_attempts'] ?? 0)) + 1;
         $attemptUpdate = getDatabaseConnection()->prepare(
             'INSERT INTO login_attempts (user_id, identifier, ip_address, failed_attempts, locked_at)
-             VALUES (NULL, :identifier, :ip_address, :failed_attempts, IF(:lock_threshold_attempts >= 5, NOW(), NULL))
-             ON DUPLICATE KEY UPDATE user_id = NULL, failed_attempts = VALUES(failed_attempts), locked_at = VALUES(locked_at), last_attempt_at = NOW()'
+             VALUES (NULL, :identifier, :ip_address, 1, IF(:lock_threshold_attempts >= 5, NOW(), NULL))
+             ON DUPLICATE KEY UPDATE
+               locked_at = IF(failed_attempts >= 4 OR :lock_threshold_attempts_update >= 5, COALESCE(locked_at, NOW()), locked_at),
+               user_id = NULL, failed_attempts = LEAST(failed_attempts + 1, 255), last_attempt_at = NOW()'
         );
         $attemptUpdate->execute([
-            ':identifier' => $normalizedIdentifier,
+            ':identifier' => $adminAttemptIdentifier,
             ':ip_address' => $ipAddress,
-            ':failed_attempts' => $failedAttempts,
-            ':lock_threshold_attempts' => $failedAttempts,
+            ':lock_threshold_attempts' => $accountFailedAttempts,
+            ':lock_threshold_attempts_update' => $accountFailedAttempts + 1,
         ]);
-        $remaining = max(0, 5 - $failedAttempts);
+        $accountAttemptStatement->execute([
+            ':ip_address' => $ipAddress,
+            ':username' => $adminAttemptIdentifier,
+            ':email' => strtolower((string) $adminUser['email']),
+        ]);
+        $accountFailedAttempts = (int) $accountAttemptStatement->fetchColumn();
+        $remaining = max(0, 5 - $accountFailedAttempts);
         $activityStatement = getDatabaseConnection()->prepare(
             'INSERT INTO login_activity (user_id, identifier, was_successful, failure_reason, ip_address)
              VALUES (NULL, :identifier, FALSE, \'invalid_admin_password\', :ip_address)'
@@ -75,8 +87,13 @@ if ($adminUser) {
         exit;
     }
 
-    getDatabaseConnection()->prepare('DELETE FROM login_attempts WHERE identifier = :identifier AND ip_address = :ip_address')
-        ->execute([':identifier' => $normalizedIdentifier, ':ip_address' => $ipAddress]);
+    getDatabaseConnection()->prepare(
+        'DELETE FROM login_attempts WHERE ip_address = :ip_address AND identifier IN (:username, :email)'
+    )->execute([
+        ':ip_address' => $ipAddress,
+        ':username' => $adminAttemptIdentifier,
+        ':email' => strtolower((string) $adminUser['email']),
+    ]);
     session_regenerate_id(true);
     $_SESSION['user_id'] = (int) $adminUser['id'];
     $_SESSION['account_type'] = 'admin';
@@ -109,7 +126,6 @@ $userStatement->execute([
     ':student_identifier' => $identifier,
 ]);
 $user = $userStatement->fetch();
-
 if ($user) {
     $verificationStatement = getDatabaseConnection()->prepare(
         'SELECT 1 FROM email_verification_tokens WHERE user_id = :user_id AND verified_at IS NOT NULL LIMIT 1'
@@ -122,13 +138,23 @@ if ($user) {
     }
 }
 
+$attemptIdentifier = $user ? strtolower((string) $user['email']) : $normalizedIdentifier;
 $attemptStatement = getDatabaseConnection()->prepare(
-    'SELECT failed_attempts, locked_at FROM login_attempts
+    'SELECT failed_attempts FROM login_attempts
      WHERE identifier = :identifier AND ip_address = :ip_address LIMIT 1'
 );
-$attemptStatement->execute([':identifier' => $normalizedIdentifier, ':ip_address' => $ipAddress]);
+$attemptStatement->execute([':identifier' => $attemptIdentifier, ':ip_address' => $ipAddress]);
 $attempt = $attemptStatement->fetch();
-if ($attempt && (int) $attempt['failed_attempts'] >= 5) {
+$accountFailedAttempts = (int) ($attempt['failed_attempts'] ?? 0);
+$accountAttemptStatement = getDatabaseConnection()->prepare(
+    'SELECT COALESCE(SUM(failed_attempts), 0) FROM login_attempts
+     WHERE user_id = :user_id AND ip_address = :ip_address'
+);
+if ($user) {
+    $accountAttemptStatement->execute([':user_id' => $user['id'], ':ip_address' => $ipAddress]);
+    $accountFailedAttempts = (int) $accountAttemptStatement->fetchColumn();
+}
+if ($accountFailedAttempts >= 5) {
     http_response_code(429);
     echo json_encode(['success' => false, 'locked' => true, 'attempts_remaining' => 0, 'message' => 'Login attempts are exhausted. Please verify your email before logging in.']);
     exit;
@@ -157,20 +183,28 @@ if ($user) {
 }
 
 if (!$user || !password_verify($password, $user['password_hash'])) {
-    $failedAttempts = ((int) ($attempt['failed_attempts'] ?? 0)) + 1;
     $attemptUpdate = getDatabaseConnection()->prepare(
         'INSERT INTO login_attempts (user_id, identifier, ip_address, failed_attempts, locked_at)
-         VALUES (:user_id, :identifier, :ip_address, :failed_attempts, IF(:lock_threshold_attempts >= 5, NOW(), NULL))
-         ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), failed_attempts = VALUES(failed_attempts), locked_at = VALUES(locked_at), last_attempt_at = NOW()'
+         VALUES (:user_id, :identifier, :ip_address, 1, IF(:lock_threshold_attempts >= 5, NOW(), NULL))
+         ON DUPLICATE KEY UPDATE
+           locked_at = IF(failed_attempts >= 4 OR :lock_threshold_attempts_update >= 5, COALESCE(locked_at, NOW()), locked_at),
+           user_id = VALUES(user_id), failed_attempts = LEAST(failed_attempts + 1, 255), last_attempt_at = NOW()'
     );
     $attemptUpdate->execute([
         ':user_id' => $user['id'] ?? null,
-        ':identifier' => $normalizedIdentifier,
+        ':identifier' => $attemptIdentifier,
         ':ip_address' => $ipAddress,
-        ':failed_attempts' => $failedAttempts,
-        ':lock_threshold_attempts' => $failedAttempts,
+        ':lock_threshold_attempts' => $accountFailedAttempts,
+        ':lock_threshold_attempts_update' => $accountFailedAttempts + 1,
     ]);
-    $remaining = max(0, 5 - $failedAttempts);
+    if ($user) {
+        $accountAttemptStatement->execute([':user_id' => $user['id'], ':ip_address' => $ipAddress]);
+        $accountFailedAttempts = (int) $accountAttemptStatement->fetchColumn();
+    } else {
+        $attemptStatement->execute([':identifier' => $attemptIdentifier, ':ip_address' => $ipAddress]);
+        $accountFailedAttempts = (int) $attemptStatement->fetchColumn();
+    }
+    $remaining = max(0, 5 - $accountFailedAttempts);
     $activityStatement = getDatabaseConnection()->prepare(
         'INSERT INTO login_activity (user_id, identifier, was_successful, failure_reason, ip_address)
          VALUES (:user_id, :identifier, FALSE, :failure_reason, :ip_address)'
@@ -187,8 +221,8 @@ if (!$user || !password_verify($password, $user['password_hash'])) {
     exit;
 }
 
-getDatabaseConnection()->prepare('DELETE FROM login_attempts WHERE identifier = :identifier AND ip_address = :ip_address')
-    ->execute([':identifier' => $normalizedIdentifier, ':ip_address' => $ipAddress]);
+getDatabaseConnection()->prepare('DELETE FROM login_attempts WHERE user_id = :user_id AND ip_address = :ip_address')
+    ->execute([':user_id' => $user['id'], ':ip_address' => $ipAddress]);
 
 session_regenerate_id(true);
 $_SESSION['user_id'] = $user['id'];

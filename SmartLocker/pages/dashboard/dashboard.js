@@ -5,11 +5,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const seeMoreButton = document.querySelector('[data-see-more]');
   const modalElement = document.getElementById('lockerActionModal');
   const modalMessage = document.getElementById('lockerActionMessage');
+  const checkoutModalElement = document.getElementById('lockerCheckoutModal');
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character]));
   const formatDate = (value) => value ? new Date(value.replace(' ', 'T')).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '—';
   let lockers = [];
   let selectedBuilding = '';
   let visibleLockerCount = 10;
+  let selectedLocker = null;
   const showMessage = (message) => {
     modalMessage.textContent = message;
     new bootstrap.Modal(modalElement).show();
@@ -26,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const isAvailable = status === 'available';
       const label = status === 'pending' ? 'Pending Reservation' : status.charAt(0).toUpperCase() + status.slice(1);
       const lockerLabel = [locker.building, locker.floor, locker.locker_number].filter(Boolean).join(' · ');
-      return `<article class="locker-card ${escapeHtml(status)}"><div class="locker-top"><span class="locker-name">${escapeHtml(lockerLabel)}</span><span class="locker-status-pill ${isAvailable ? 'available-pill' : 'occupied-pill'}">${escapeHtml(label)}</span></div><p>${escapeHtml(locker.area || locker.size || 'Locker')}</p>${isAvailable ? `<button class="reserve-button" data-locker-id="${locker.id}" data-locker-name="${escapeHtml(lockerLabel)}" type="button">Request reservation</button>` : ''}</article>`;
+      return `<article class="locker-card ${escapeHtml(status)}"><div class="locker-top"><span class="locker-name">${escapeHtml(lockerLabel)}</span><span class="locker-status-pill ${isAvailable ? 'available-pill' : 'occupied-pill'}">${escapeHtml(label)}</span></div><p>${escapeHtml(locker.area || locker.size || 'Locker')}</p>${isAvailable ? `<button class="reserve-button" data-locker-id="${locker.id}" data-locker-name="${escapeHtml(lockerLabel)}" type="button">Get this locker</button>` : ''}</article>`;
     }).join('') : '<p class="locker-empty">No lockers are available in this building.</p>';
     seeMoreButton.hidden = visibleLockerCount >= buildingLockers.length;
   };
@@ -39,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
     lockers = result.lockers;
     renderLockers();
 
-    reservationsElement.innerHTML = result.reservations.length ? result.reservations.map((reservation) => `<tr><td>${escapeHtml(reservation.locker_number)}</td><td>${formatDate(reservation.requested_at)}</td><td>${formatDate(reservation.starts_at)}</td><td>${formatDate(reservation.ends_at)}</td><td><span class="status-badge ${escapeHtml(reservation.status)}">${escapeHtml(reservation.status)}</span></td></tr>`).join('') : '<tr><td colspan="5">No reservation requests yet.</td></tr>';
+    reservationsElement.innerHTML = result.reservations.length ? result.reservations.map((reservation) => `<tr><td>${escapeHtml(reservation.locker_number)}</td><td>${formatDate(reservation.requested_at)}</td><td>${formatDate(reservation.starts_at)}</td><td>${formatDate(reservation.ends_at)}</td><td><span class="status-badge ${escapeHtml(reservation.status)}">${escapeHtml(reservation.status)}</span>${reservation.payment_status ? `<small class="d-block mt-1">${escapeHtml(reservation.payment_status)}${reservation.amount_pesos ? ` · ₱${escapeHtml(reservation.amount_pesos)}` : ''}</small>` : ''}</td></tr>`).join('') : '<tr><td colspan="5">No reservation requests yet.</td></tr>';
     const currentReservation = result.reservations.find((reservation) => ['approved', 'active'].includes(reservation.status));
     const currentLocker = currentReservation && result.lockers.find((locker) => String(locker.id) === String(currentReservation.locker_id));
     document.querySelector('[data-current-status]').textContent = currentReservation ? 'Reserved' : 'No active locker';
@@ -64,22 +66,29 @@ document.addEventListener('DOMContentLoaded', () => {
       renderLockers();
       return;
     }
+    const checkoutButton = event.target.closest('[data-start-checkout]');
+    if (checkoutButton) {
+      if (!selectedLocker) return;
+      checkoutButton.disabled = true;
+      const data = new FormData();
+      data.append('locker_id', selectedLocker.id);
+      data.append('duration', document.querySelector('[data-rental-term]').value);
+      try {
+        const response = await fetch('../../php/create_checkout.php', { method: 'POST', body: data });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || 'Unable to prepare payment.');
+        window.location.href = result.payment_url;
+      } catch (error) {
+        checkoutButton.disabled = false;
+        showMessage(error.message);
+      }
+      return;
+    }
     const button = event.target.closest('[data-locker-id]');
     if (!button) return;
-    if (!window.confirm(`Submit a reservation request for ${button.dataset.lockerName}?`)) return;
-    button.disabled = true;
-    const data = new FormData();
-    data.append('locker_id', button.dataset.lockerId);
-    try {
-      const response = await fetch('../../php/student_action.php', { method: 'POST', body: data });
-      const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.message || 'Reservation request failed.');
-      showMessage(result.message);
-      await loadReservations();
-    } catch (error) {
-      button.disabled = false;
-      showMessage(error.message);
-    }
+    selectedLocker = { id: button.dataset.lockerId, name: button.dataset.lockerName };
+    document.querySelector('[data-checkout-locker]').textContent = selectedLocker.name;
+    new bootstrap.Modal(checkoutModalElement).show();
   });
 
   loadReservations().catch((error) => showMessage(error.message));

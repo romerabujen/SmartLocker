@@ -27,11 +27,13 @@ try {
 
     $statement = $connection->prepare(
         "SELECT r.id, r.locker_id, r.requested_at, r.approved_at, r.starts_at, r.ends_at,
-                r.duration, r.status, l.locker_number,
+            r.duration, r.status, l.locker_number,
+                p.status AS payment_status, p.amount_pesos, p.payment_mode,
                 ll.building, ll.floor, ll.area
          FROM reservations r
          INNER JOIN lockers l ON l.id = r.locker_id
          INNER JOIN locker_locations ll ON ll.id = l.location_id
+         LEFT JOIN reservation_payments p ON p.reservation_id = r.id
          WHERE r.user_id = :user_id
          ORDER BY r.requested_at DESC"
     );

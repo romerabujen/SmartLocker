@@ -38,7 +38,17 @@ document.addEventListener('DOMContentLoaded', () => {
     renderLockers();
     renderAssignedLockers(result.assigned_lockers || []);
 
-    document.querySelector('[data-reservations]').innerHTML = result.reservations.length ? result.reservations.map((reservation) => `<article class="queue-item"><div><strong>${escapeHtml(reservation.locker_number)} · ${escapeHtml(reservation.first_name)} ${escapeHtml(reservation.last_name)}</strong><p>${escapeHtml(reservation.student_id)} · Requested ${formatDate(reservation.requested_at)}${reservation.ends_at ? ` · ${formatDate(reservation.starts_at)} to ${formatDate(reservation.ends_at)}` : ''}</p></div><div class="queue-actions">${reservation.status === 'pending' ? `<select data-reservation-duration="${reservation.id}" aria-label="Reservation duration"><option value="">Duration</option><option value="1_week">1 Week</option><option value="2_weeks">2 Weeks</option><option value="3_weeks">3 Weeks</option><option value="1_month">1 Month</option></select><button data-reservation-id="${reservation.id}" data-reservation-status="approved">Approve</button><button class="danger" data-reservation-id="${reservation.id}" data-reservation-status="rejected">Reject</button>` : `<span class="status ${escapeHtml(reservation.status)}">${escapeHtml(reservation.status)}</span>`}</div></article>`).join('') : '<p class="empty">No reservation history yet.</p>';
+    document.querySelector('[data-reservations]').innerHTML = result.reservations.length ? result.reservations.map((reservation) => {
+      const paid = reservation.payment_status === 'paid';
+      const hasPayment = Boolean(reservation.payment_status);
+      const term = { '1_week': '1 Week', '1_month': '1 Month', '3_months': '3 Months' }[reservation.duration] || reservation.duration || '';
+      const actions = reservation.status !== 'pending'
+        ? `<span class="status ${escapeHtml(reservation.status)}">${escapeHtml(reservation.status)}</span>`
+        : hasPayment && !paid
+          ? `<span class="status pending">Payment ${escapeHtml(reservation.payment_status)}</span>`
+          : `${paid ? `<span>${escapeHtml(term)} · ₱${escapeHtml(reservation.amount_pesos)}</span>` : `<select data-reservation-duration="${reservation.id}" aria-label="Reservation duration"><option value="">Duration</option><option value="1_week">1 Week</option><option value="1_month">1 Month</option><option value="3_months">3 Months</option></select>`}<button data-reservation-id="${reservation.id}" data-reservation-status="approved">Approve</button>${!paid || reservation.payment_mode === 'simulation' ? `<button class="danger" data-reservation-id="${reservation.id}" data-reservation-status="rejected">Reject</button>` : ''}`;
+      return `<article class="queue-item"><div><strong>${escapeHtml(reservation.locker_number)} · ${escapeHtml(reservation.first_name)} ${escapeHtml(reservation.last_name)}</strong><p>${escapeHtml(reservation.student_id)} · Requested ${formatDate(reservation.requested_at)}${reservation.ends_at ? ` · ${formatDate(reservation.starts_at)} to ${formatDate(reservation.ends_at)}` : ''}</p></div><div class="queue-actions">${actions}</div></article>`;
+    }).join('') : '<p class="empty">No reservation history yet.</p>';
 
     document.querySelector('[data-reports]').innerHTML = result.reports.length ? result.reports.map((report) => `<article class="queue-item"><div><strong>${escapeHtml(report.locker_number)} · ${escapeHtml(report.issue_type)} <span class="priority ${report.priority}">${escapeHtml(report.priority)}</span></strong><p>${escapeHtml(report.description)}</p></div><button data-report-id="${report.id}">Resolve</button></article>`).join('') : '<p class="empty">No open maintenance reports.</p>';
 

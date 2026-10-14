@@ -11,6 +11,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+$genericMessage = 'If the account exists, a password reset verification link has been sent to its registered email.';
+
 $identifier = trim((string) ($_POST['identifier'] ?? ''));
 $password = (string) ($_POST['password'] ?? '');
 $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
@@ -39,8 +41,7 @@ $statement->execute([
 $user = $statement->fetch();
 
 if (!$user) {
-    http_response_code(404);
-    echo json_encode(['success' => false, 'message' => 'No SmartLocker account was found for that email or student ID.']);
+    echo json_encode(['success' => true, 'message' => $genericMessage]);
     exit;
 }
 
@@ -59,9 +60,9 @@ $resetId = (int) $connection->lastInsertId();
 
 if (!call_user_func('sendPasswordResetConfirmationEmail', $connection, $resetId, $user['email'], $user['first_name'])) {
     $connection->prepare('DELETE FROM password_reset_tokens WHERE id = :id')->execute([':id' => $resetId]);
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'The confirmation email could not be sent.']);
+    error_log('SmartLocker forgot-password confirmation email could not be sent.');
+    echo json_encode(['success' => true, 'message' => $genericMessage]);
     exit;
 }
 
-echo json_encode(['success' => true, 'message' => 'Check your registered email for the verification link to confirm your password reset.']);
+echo json_encode(['success' => true, 'message' => $genericMessage]);
