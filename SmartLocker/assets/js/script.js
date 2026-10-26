@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const loadDashboardUser = () => {
     if (!document.querySelector('[data-user-full-name]')) return;
 
-    fetch('../../php/current_user.php')
+    fetch('../../database/current_user.php')
       .then(async (response) => {
         const result = await response.json();
         if (!response.ok || result.success !== true) {
@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const data = new FormData();
       data.append('identifier', identifier);
-      const response = await fetch('../../php/login_status.php', { method: 'POST', body: data });
+      const response = await fetch('../../database/login_status.php', { method: 'POST', body: data });
       const result = await response.json();
       if (result.requires_verification) {
         loginForm.hidden = false;
@@ -158,13 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       fetch(loginForm.action, { method: 'POST', body: new FormData(loginForm) })
         .then(async (response) => {
-          const responseText = await response.text();
-          let result;
-          try {
-            result = JSON.parse(responseText);
-          } catch (error) {
-            throw new Error('The login server returned an invalid response. Check that Apache and PHP are running, then try again.');
-          }
+          const result = await response.json();
           if (response.status === 403) {
             loginForm.hidden = false;
             document.getElementById('loginLockout').hidden = true;
@@ -206,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const formData = new FormData();
       formData.append('identifier', identifier);
-      const response = await fetch('../../php/password_reset_request.php', { method: 'POST', body: formData });
+      const response = await fetch('../../database/password_reset_request.php', { method: 'POST', body: formData });
       const result = await response.json();
       alert(result.message);
     });
@@ -221,15 +215,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const formData = new FormData();
       formData.append('credential', response.credential);
 
-      fetch('../../php/google_login.php', { method: 'POST', body: formData })
+      fetch('../../database/google_login.php', { method: 'POST', body: formData })
         .then(async (serverResponse) => {
-          const responseText = await serverResponse.text();
-          let result;
-          try {
-            result = JSON.parse(responseText);
-          } catch (error) {
-            throw new Error('The Google login server returned an invalid response. Please refresh the page and try again.');
-          }
+          const result = await serverResponse.json();
           if (serverResponse.status === 429) {
             setGoogleLoginDisabled(true);
           }
@@ -240,9 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!serverResponse.ok || result.success !== true) {
             throw new Error(result.message || 'Google login failed.');
           }
-          window.location.href = result.user?.account_type === 'admin'
-            ? '../admin/admin.html'
-            : '../dashboard/dashboard.html';
+          window.location.href = '../dashboard/dashboard.html';
         })
         .catch((error) => alert(error.message));
     };
@@ -472,7 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
       event.preventDefault();
       const formData = new FormData(signupForm);
       formData.append('credential', googleCredential);
-      fetch('../../php/google_signup.php', { method: 'POST', body: formData })
+      fetch('../../database/google_signup.php', { method: 'POST', body: formData })
         .then(async (response) => {
           const result = await response.json();
           if (!response.ok) throw new Error(result.message || 'Google signup failed.');
@@ -513,7 +499,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (action === 'reserve') {
-        document.getElementById('locker')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (modalMessage && modalElement) {
+          modalMessage.textContent = 'Reservation request for Locker L-001 has been submitted successfully.';
+          const bsModal = new bootstrap.Modal(modalElement);
+          bsModal.show();
+        }
         return;
       }
 

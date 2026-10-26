@@ -126,9 +126,6 @@ h1 {
 }
 
 .primary-action:hover { color: #fff; background: var(--blue-dark); transform: translateY(-2px); }
-.primary-action[hidden] { display: none; }
-.confirm-verification, .confirm-reset { border: 0; font: inherit; cursor: pointer; }
-.confirm-verification:disabled, .confirm-reset:disabled { cursor: wait; opacity: 0.7; }
 
 .support-text {
   margin: 18px 0 0;

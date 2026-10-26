@@ -5,7 +5,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/reservation_service.php';
 require_once __DIR__ . '/reservation_mail.php';
-requireRole('admin');
+$admin = requireRole('admin');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -337,11 +337,55 @@ try {
         throw new InvalidArgumentException('Unknown administrator action.');
     }
 
+    $auditTargets = [
+        'create_locker' => ['locker', (string) ($_POST['locker_number'] ?? '')],
+        'edit_locker' => ['locker', (string) ($_POST['locker_id'] ?? '')],
+        'delete_locker' => ['locker', (string) ($_POST['locker_id'] ?? '')],
+        'update_locker_status' => ['locker', (string) ($_POST['locker_id'] ?? '')],
+        'unassign_locker' => ['assignment', (string) ($_POST['assignment_id'] ?? '')],
+        'maintain_assigned_locker' => ['locker', (string) ($_POST['locker_id'] ?? '')],
+        'complete_assigned_maintenance' => ['locker', (string) ($_POST['locker_id'] ?? '')],
+        'update_reservation' => ['reservation', (string) ($_POST['reservation_id'] ?? '')],
+        'resolve_report' => ['maintenance_report', (string) ($_POST['report_id'] ?? '')],
+    ];
+    [$targetType, $targetId] = $auditTargets[$action];
+    $auditDetails = match ($action) {
+        'create_locker' => 'Created locker ' . $targetId,
+        'edit_locker' => 'Edited locker ' . $targetId,
+        'delete_locker' => 'Deleted locker ' . $targetId,
+        'update_locker_status' => 'Set locker ' . $targetId . ' status to ' . trim((string) ($_POST['status'] ?? '')),
+        'unassign_locker' => 'Unassigned assignment ' . $targetId . ': ' . trim((string) ($_POST['reason'] ?? '')),
+        'maintain_assigned_locker' => 'Started maintenance for locker ' . $targetId . ': ' . trim((string) ($_POST['reason'] ?? '')),
+        'complete_assigned_maintenance' => 'Completed maintenance for locker ' . $targetId,
+        'update_reservation' => 'Set reservation ' . $targetId . ' to ' . trim((string) ($_POST['status'] ?? '')),
+        'resolve_report' => 'Resolved maintenance report ' . $targetId,
+    };
+    $auditLogged = true;
+    try {
+        $auditStatement = $connection->prepare(
+            'INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details, ip_address)
+             VALUES (:admin_id, :action, :target_type, :target_id, :details, :ip_address)'
+        );
+        $auditStatement->execute([
+            ':admin_id' => $admin['id'],
+            ':action' => $action,
+            ':target_type' => $targetType,
+            ':target_id' => $targetId !== '' ? $targetId : null,
+            ':details' => $auditDetails,
+            ':ip_address' => $_SERVER['REMOTE_ADDR'] ?? null,
+        ]);
+    } catch (PDOException $exception) {
+        error_log('Administrator action succeeded but its audit record could not be written: ' . $exception->getMessage());
+        $auditLogged = false;
+    }
+
     echo json_encode([
         'success' => true,
-        'message' => isset($notificationSent) && !$notificationSent
-            ? 'Update saved, but the email notification could not be sent.'
-            : 'Update saved.',
+        'message' => !$auditLogged
+            ? 'Update saved, but its audit log entry could not be recorded.'
+            : (isset($notificationSent) && !$notificationSent
+                ? 'Update saved, but the email notification could not be sent.'
+                : 'Update saved.'),
     ]);
 } catch (InvalidArgumentException $exception) {
     if ($connection->inTransaction()) {
