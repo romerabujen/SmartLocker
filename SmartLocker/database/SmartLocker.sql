@@ -31,14 +31,14 @@ CREATE TABLE IF NOT EXISTS lockers (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   location_id INT UNSIGNED NOT NULL,
   locker_number VARCHAR(30) NOT NULL,
-  status ENUM('available', 'pending', 'reserved', 'occupied', 'maintenance', 'offline') NOT NULL DEFAULT 'available',
+  status ENUM('available', 'reserved', 'occupied', 'maintenance', 'offline') NOT NULL DEFAULT 'available',
   size ENUM('small', 'medium', 'large') NOT NULL DEFAULT 'medium',
   description VARCHAR(255) NULL,
   installed_at DATE NULL,
   last_seen_at DATETIME NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_locker_number (locker_number),
+  UNIQUE KEY uq_locker_number (location_id, locker_number),
   KEY idx_lockers_status (status),
   CONSTRAINT fk_lockers_location FOREIGN KEY (location_id) REFERENCES locker_locations (id)
     ON UPDATE CASCADE ON DELETE RESTRICT
@@ -79,11 +79,9 @@ CREATE TABLE IF NOT EXISTS reservations (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   locker_id INT UNSIGNED NOT NULL,
   user_id INT UNSIGNED NOT NULL,
-  requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  starts_at DATETIME NULL,
-  ends_at DATETIME NULL,
-  duration VARCHAR(20) NULL,
-  status ENUM('pending', 'approved', 'active', 'rejected', 'completed', 'cancelled', 'expired') NOT NULL DEFAULT 'pending',
+  starts_at DATETIME NOT NULL,
+  ends_at DATETIME NOT NULL,
+  status ENUM('pending', 'approved', 'active', 'completed', 'cancelled', 'expired') NOT NULL DEFAULT 'pending',
   purpose VARCHAR(255) NULL,
   approved_at DATETIME NULL,
   cancelled_at DATETIME NULL,
@@ -91,7 +89,6 @@ CREATE TABLE IF NOT EXISTS reservations (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   KEY idx_reservations_user_status (user_id, status),
   KEY idx_reservations_locker_dates (locker_id, starts_at, ends_at),
-  KEY idx_reservations_locker_status (locker_id, status),
   CONSTRAINT fk_reservations_locker FOREIGN KEY (locker_id) REFERENCES lockers (id)
     ON UPDATE CASCADE ON DELETE RESTRICT,
   CONSTRAINT fk_reservations_user FOREIGN KEY (user_id) REFERENCES users (id)
@@ -152,6 +149,20 @@ CREATE TABLE IF NOT EXISTS login_activity (
   KEY idx_login_activity_identifier_time (identifier, attempted_at),
   CONSTRAINT fk_login_activity_user FOREIGN KEY (user_id) REFERENCES users (id)
     ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS admin_audit_logs (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  admin_id INT UNSIGNED NOT NULL,
+  action VARCHAR(80) NOT NULL,
+  target_type VARCHAR(50) NOT NULL,
+  target_id VARCHAR(50) NULL,
+  details VARCHAR(1000) NOT NULL,
+  ip_address VARCHAR(45) NULL,
+  occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_admin_audit_logs_time (occurred_at),
+  KEY idx_admin_audit_logs_admin_time (admin_id, occurred_at),
+  KEY idx_admin_audit_logs_target (target_type, target_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS email_verification_tokens (

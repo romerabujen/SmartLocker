@@ -23,6 +23,8 @@
           <a href="#reservations"><span>◷</span>Reservations</a>
           <a href="#maintenance"><span>⚠</span>Maintenance</a>
           <a href="#activity"><span>↗</span>Access activity</a>
+          <a href="#reports"><span>▧</span>Reports & analytics</a>
+          <a href="#audit-log"><span>≡</span>Audit log</a>
           <a href="#users"><span>◎</span>Students</a>
         </nav>
         <button class="logout" type="button" data-action="logout"><span>←</span>Sign out</button>
@@ -67,9 +69,45 @@
         </div>
 
         <div class="split-grid lower-grid">
-          <section id="activity" class="panel"><div class="panel-heading"><div><p class="kicker">Audit trail</p><h2>Recent access</h2></div></div><div class="table-wrap"><table><thead><tr><th>Time</th><th>Locker</th><th>Student</th><th>Event</th><th>Result</th></tr></thead><tbody data-activity><tr><td colspan="5" class="empty">Loading activity...</td></tr></tbody></table></div></section>
+          <section id="activity" class="panel"><div class="panel-heading"><div><p class="kicker">Access history</p><h2>Recent access</h2></div></div><div class="table-wrap"><table><thead><tr><th>Time</th><th>Locker</th><th>Student</th><th>Event</th><th>Result</th></tr></thead><tbody data-activity><tr><td colspan="5" class="empty">Loading activity...</td></tr></tbody></table></div></section>
           <section id="users" class="panel"><div class="panel-heading"><div><p class="kicker">Directory</p><h2>New students</h2></div></div><div class="student-list" data-users><p class="empty">Loading students...</p></div></section>
         </div>
+
+        <section id="reports" class="panel">
+          <div class="panel-heading">
+            <div><p class="kicker">Operations intelligence</p><h2>Reports & analytics</h2></div>
+            <div class="export-actions">
+              <button class="ghost-button" type="button" data-print-report>Print</button>
+              <button class="ghost-button" type="button" data-download-report>Download PDF</button>
+            </div>
+          </div>
+          <form class="report-filters" data-report-filters>
+            <label>From <input type="date" name="from" required /></label>
+            <label>To <input type="date" name="to" required /></label>
+            <button type="submit">Generate report</button>
+          </form>
+          <p class="report-period" data-report-period>Choose a date range to generate a report.</p>
+          <div class="report-metrics" data-report-metrics><p class="empty">Loading report data...</p></div>
+          <div class="analytics-grid">
+            <div><h3>Locker availability</h3><div class="analytics-list" data-locker-analytics></div></div>
+            <div><h3>Reservations</h3><div class="analytics-list" data-reservation-analytics></div></div>
+            <div><h3>Access activity</h3><div class="analytics-list" data-access-analytics></div></div>
+            <div><h3>Maintenance</h3><div class="analytics-list" data-maintenance-analytics></div></div>
+          </div>
+          <div class="report-top-lockers"><h3>Most accessed lockers</h3><div class="table-wrap"><table><thead><tr><th>Locker</th><th>Location</th><th>Access attempts</th><th>Successful</th></tr></thead><tbody data-top-lockers><tr><td colspan="4" class="empty">Loading analytics...</td></tr></tbody></table></div></div>
+        </section>
+
+        <section id="audit-log" class="panel">
+          <div class="panel-heading">
+            <div><p class="kicker">Administrator activity</p><h2>Audit log</h2></div>
+            <div class="export-actions">
+              <button class="ghost-button" type="button" data-print-audit>Print</button>
+              <button class="ghost-button" type="button" data-download-audit>Download PDF</button>
+            </div>
+          </div>
+          <p class="report-period" data-audit-period></p>
+          <div class="table-wrap"><table><thead><tr><th>Time</th><th>Administrator</th><th>Action</th><th>Target</th><th>Details</th><th>IP address</th></tr></thead><tbody data-audit-logs><tr><td colspan="6" class="empty">Loading audit log...</td></tr></tbody></table></div>
+        </section>
       </main>
     </div>
     <div class="assigned-modal" data-assigned-modal hidden>
